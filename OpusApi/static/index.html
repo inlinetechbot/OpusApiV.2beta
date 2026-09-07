@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpusMusicApi — YouTube Music API for Telegram Bots</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080B14;
+    --panel: #10152400;
+    --panel-solid: #141B2E;
+    --line: rgba(255,255,255,0.09);
+    --line-bright: rgba(255,255,255,0.18);
+    --text: #F2F4FC;
+    --text-dim: #8891AA;
+    --text-dimmer: #545E77;
+    --blue: #5B8CFF;
+    --blue-soft: #7FA3FF;
+    --cyan: #00E5C7;
+    --amber: #FFB454;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    position: relative;
+    cursor: default;
+  }
+
+  ::selection { background: rgba(91,140,255,0.35); color: #fff; }
+
+  /* ── Cursor glow (subtle, follows pointer) ────────────────── */
+  .cursor-glow {
+    position: fixed;
+    top: 0; left: 0;
+    width: 420px; height: 420px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(91,140,255,0.06), transparent 70%);
+    pointer-events: none;
+    z-index: 1;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s;
+    will-change: transform;
+  }
+  @media (max-width: 860px) { .cursor-glow { display: none; } }
+
+  /* ── Ambient background ─────────────────────────────────── */
+  .bg-glow {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 900px 600px at 20% -10%, rgba(91,140,255,0.16), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 90% 10%, rgba(0,229,199,0.10), transparent 60%),
+      radial-gradient(ellipse 800px 800px at 50% 100%, rgba(91,140,255,0.08), transparent 60%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ── Nav ─────────────────────────────────────────────────── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 48px;
+    background: rgba(8,11,20,0.5);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border-bottom: 1px solid transparent;
+    transition: background 0.4s ease, border-color 0.4s ease, padding 0.3s ease;
+  }
+  nav.scrolled {
+    background: rgba(8,11,20,0.82);
+    border-bottom: 1px solid var(--line);
+    padding: 16px 48px;
+  }
+
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+
+  .nav-mark {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    position: relative;
+    flex-shrink: 0;
+  }
+  .nav-mark::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 3px;
+    background: var(--bg);
+    clip-path: polygon(20% 20%, 80% 50%, 20% 80%);
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 36px;
+    font-size: 14.5px;
+    color: var(--text-dim);
+  }
+  .nav-links a { color: inherit; text-decoration: none; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--text); }
+
+  .nav-cta {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--bg);
+    background: var(--text);
+    padding: 9px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(255,255,255,0.12); }
+
+  @media (max-width: 860px) {
+    .nav-links { display: none; }
+    nav { padding: 18px 24px; }
+  }
+
+  /* ── Hero ────────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    z-index: 2;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 140px 24px 80px;
+  }
+
+  #hero-canvas {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(720px, 90vw);
+    height: min(720px, 90vw);
+    z-index: -1;
+    opacity: 0.9;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line-bright);
+    padding: 7px 14px 7px 10px;
+    border-radius: 100px;
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: rise 0.7s cubic-bezier(0.16,1,0.3,1) 0.1s forwards;
+  }
+  .eyebrow-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 10px var(--cyan);
+    animation: pulse-dot 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  h1.hero-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(40px, 6.4vw, 78px);
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+    max-width: 15ch;
+  }
+  h1.hero-title .word {
+    display: inline-block;
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(24px);
+    animation: word-in 0.9s cubic-bezier(0.16,1,0.3,1) forwards;
+    background: linear-gradient(180deg, #FFFFFF 20%, #AEB9D6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  @keyframes word-in {
+    to { opacity: 1; filter: blur(0); transform: translateY(0); }
+  }
+
+  .hero-sub {
+    margin-top: 22px;
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    max-width: 46ch;
+    opacity: 0;
+    animation: rise 0.8s cubic-bezier(0.16,1,0.3,1) 0.7s forwards;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 14px;
+    margin-top: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+    opacity: 0;
+    animation: rise 0.8s cubic-bezier(0.16,1,0.3,1) 0.85s forwards;
+  }
+
+  .btn-primary, .btn-ghost {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 15px;
+    padding: 13px 26px;
+    border-radius: 10px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s, background 0.2s;
+    will-change: transform;
+  }
+
+  .btn-primary {
+    color: #06121F;
+    background: linear-gradient(135deg, var(--blue-soft), var(--cyan));
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.1) inset, 0 10px 30px rgba(91,140,255,0.22);
+  }
+  .btn-primary:hover { transform: translateY(-3px) scale(1.015); box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset, 0 18px 40px rgba(91,140,255,0.4); }
+  .btn-primary:active { transform: translateY(-1px) scale(1.0); }
+
+  .btn-ghost {
+    color: var(--text);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--line-bright);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.09); transform: translateY(-3px); border-color: rgba(255,255,255,0.3); }
+
+  .hero-powered {
+    margin-top: 64px;
+    font-size: 13px;
+    color: var(--text-dimmer);
+    letter-spacing: 0.02em;
+    opacity: 0;
+    animation: rise 0.8s cubic-bezier(0.16,1,0.3,1) 1s forwards;
+  }
+  .hero-powered b { color: var(--text-dim); font-weight: 600; }
+
+  /* ── Scroll reveal ───────────────────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.8s cubic-bezier(0.16,1,0.3,1), transform 0.8s cubic-bezier(0.16,1,0.3,1);
+  }
+  .reveal.in-view {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-stagger.in-view .flow-step { opacity: 1; transform: translateY(0); }
+  .flow-step {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
+  }
+  .reveal-stagger.in-view .flow-step:nth-child(1) { transition-delay: 0.05s; }
+  .reveal-stagger.in-view .flow-step:nth-child(2) { transition-delay: 0.15s; }
+  .reveal-stagger.in-view .flow-step:nth-child(3) { transition-delay: 0.25s; }
+  .reveal-stagger.in-view .flow-step:nth-child(4) { transition-delay: 0.35s; }
+
+  /* ── Liquid glass panel (used once, deliberately) ─────────── */
+  .glass-panel {
+    position: relative;
+    background: linear-gradient(155deg, rgba(255,255,255,0.09), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 24px;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.2) inset,
+      0 30px 80px -20px rgba(0,0,0,0.6),
+      0 0 60px -20px rgba(91,140,255,0.3);
+    overflow: hidden;
+  }
+  .glass-panel::before {
+    content: '';
+    position: absolute;
+    top: -60%; left: -20%;
+    width: 70%; height: 200%;
+    background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.10) 45%, rgba(255,255,255,0.02) 55%, transparent 70%);
+    animation: sheen 7s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes sheen {
+    0%, 100% { transform: translateX(-30%) rotate(0deg); }
+    50% { transform: translateX(140%) rotate(0deg); }
+  }
+
+  /* ── Section shell ───────────────────────────────────────── */
+  section { position: relative; z-index: 2; padding: 120px 24px; }
+  .section-inner { max-width: 1080px; margin: 0 auto; }
+  .section-head { max-width: 640px; margin-bottom: 56px; }
+  .section-kicker { font-size: 14px; color: var(--cyan); font-weight: 600; margin-bottom: 12px; }
+  .section-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 3.6vw, 42px); letter-spacing: -0.02em; line-height: 1.15; }
+  .section-desc { margin-top: 16px; font-size: 16.5px; color: var(--text-dim); line-height: 1.65; max-width: 56ch; }
+
+  /* ── Flow demo (request flow, real sequence so numbering is earned) ── */
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    counter-reset: step;
+  }
+  .flow-step {
+    position: relative;
+    padding: 28px 24px 28px 0;
+    border-top: 1px solid var(--line);
+    transition: padding-left 0.35s cubic-bezier(0.16,1,0.3,1);
+  }
+  .flow-step::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: 0;
+    width: 0; height: 1px;
+    background: linear-gradient(90deg, var(--cyan), transparent);
+    transition: width 0.6s cubic-bezier(0.16,1,0.3,1);
+  }
+  .flow-step:hover::before { width: 100%; }
+  .flow-step:hover { padding-left: 8px; }
+  .flow-step:first-child { padding-left: 0; }
+  .flow-step:hover:first-child { padding-left: 8px; }
+  .flow-num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dimmer);
+    margin-bottom: 14px;
+  }
+  .flow-step h3 { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .flow-step p { font-size: 14.5px; color: var(--text-dim); line-height: 1.55; }
+  .flow-arrow {
+    position: absolute;
+    top: -1px; right: -1px;
+    width: 20px; height: 1px;
+    background: var(--line-bright);
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .flow { grid-template-columns: 1fr; }
+    .flow-step { padding-left: 0 !important; border-left: none; }
+  }
+
+  /* ── Docs layout ─────────────────────────────────────────── */
+  .docs-shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 56px;
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  .docs-nav {
+    position: sticky;
+    top: 110px;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .docs-nav a {
+    font-size: 14px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border-left: 2px solid transparent;
+    transition: color 0.25s, background 0.25s, border-color 0.25s;
+  }
+  .docs-nav a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .docs-nav a.active { color: var(--cyan); border-left-color: var(--cyan); background: rgba(0,229,199,0.06); }
+
+  .doc-block { margin-bottom: 64px; scroll-margin-top: 110px; }
+  .doc-block h3 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .method-tag {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 5px;
+    letter-spacing: 0.02em;
+  }
+  .method-get { color: var(--cyan); background: rgba(0,229,199,0.12); border: 1px solid rgba(0,229,199,0.25); }
+  .method-post { color: var(--amber); background: rgba(255,180,84,0.12); border: 1px solid rgba(255,180,84,0.25); }
+
+  .doc-block p { font-size: 15px; color: var(--text-dim); line-height: 1.65; margin-bottom: 18px; max-width: 62ch; }
+
+  .code-block {
+    position: relative;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.7;
+    background: #0C1120;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 22px;
+    overflow-x: auto;
+    color: #C7D0E8;
+    transition: border-color 0.3s;
+  }
+  .code-block:hover { border-color: var(--line-bright); }
+  .code-block .tok-key { color: var(--blue-soft); }
+  .code-block .tok-str { color: var(--cyan); }
+  .code-block .tok-punc { color: var(--text-dimmer); }
+  .code-block .tok-comment { color: var(--text-dimmer); font-style: italic; }
+
+  .copy-btn {
+    position: absolute;
+    top: 12px; right: 12px;
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-dimmer);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line);
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s, border-color 0.2s, background 0.2s;
+  }
+  .code-block:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { color: var(--text); border-color: var(--line-bright); background: rgba(255,255,255,0.08); }
+  .copy-btn.copied { color: var(--cyan); border-color: rgba(0,229,199,0.3); }
+
+  .param-table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+  .param-table th { text-align: left; font-weight: 600; color: var(--text-dimmer); font-size: 12.5px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .param-table td { padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--text-dim); vertical-align: top; }
+  .param-table td:first-child { font-family: var(--font-mono); color: var(--text); white-space: nowrap; padding-right: 20px; }
+  .param-table td:nth-child(2) { color: var(--blue-soft); white-space: nowrap; padding-right: 20px; font-family: var(--font-mono); font-size: 13px; }
+
+  @media (max-width: 860px) {
+    .docs-shell { grid-template-columns: 1fr; }
+    .docs-nav { position: static; flex-direction: row; overflow-x: auto; }
+  }
+
+  /* ── Token generator card ───────────────────────────────── */
+  .token-card {
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 44px;
+    text-align: center;
+  }
+  .token-card h2 { font-family: var(--font-display); font-size: 30px; font-weight: 600; margin-bottom: 12px; letter-spacing: -0.02em; }
+  .token-card p { color: var(--text-dim); font-size: 15.5px; line-height: 1.6; margin-bottom: 28px; }
+
+  .join-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; text-align: left; }
+  .join-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: 14.5px;
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .join-item:hover { border-color: var(--line-bright); background: rgba(255,255,255,0.045); }
+  .join-item.done { border-color: rgba(0,229,199,0.3); background: rgba(0,229,199,0.05); }
+  .join-item .join-name { display: flex; align-items: center; gap: 10px; }
+  .join-item .join-check {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line-bright);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    color: var(--text-dimmer);
+    flex-shrink: 0;
+    transition: border-color 0.3s, background 0.3s, color 0.3s;
+  }
+  .join-item.done .join-check { border-color: var(--cyan); background: rgba(0,229,199,0.15); color: var(--cyan); }
+  .join-btn {
+    font-size: 13px; font-weight: 600;
+    color: var(--blue-soft);
+    background: rgba(91,140,255,0.1);
+    border: 1px solid rgba(91,140,255,0.25);
+    padding: 6px 14px;
+    border-radius: 7px;
+    text-decoration: none;
+  }
+
+  .generate-btn {
+    width: 100%;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 15.5px;
+    color: #06121F;
+    background: linear-gradient(135deg, var(--blue-soft), var(--cyan));
+    border: none;
+    padding: 15px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+  .generate-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(91,140,255,0.3); }
+
+  .token-limits { display: flex; justify-content: center; gap: 28px; margin-top: 26px; font-size: 13px; color: var(--text-dimmer); }
+  .token-limits b { color: var(--text-dim); font-weight: 600; }
+
+  /* ── Footer ──────────────────────────────────────────────── */
+  footer {
+    position: relative; z-index: 2;
+    padding: 48px 24px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  footer .foot-brand { font-family: var(--font-display); font-weight: 600; font-size: 15px; color: var(--text-dim); }
+  footer .foot-links { display: flex; gap: 24px; font-size: 13.5px; }
+  footer .foot-links a { color: var(--text-dimmer); text-decoration: none; }
+  footer .foot-links a:hover { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+<div class="grain"></div>
+<div class="cursor-glow" id="cursor-glow"></div>
+
+<nav>
+  <div class="nav-brand">
+    <div class="nav-mark"></div>
+    OpusMusicApi
+  </div>
+  <div class="nav-links">
+    <a href="#flow">How it works</a>
+    <a href="#docs">Documentation</a>
+    <a href="#token">Get a token</a>
+  </div>
+  <a href="#token" class="nav-cta">Get API token</a>
+</nav>
+
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="eyebrow"><span class="eyebrow-dot"></span> Cached responses average under 2 seconds</div>
+  <h1 class="hero-title"><span class="word" style="animation-delay:0.15s">Stream</span> <span class="word" style="animation-delay:0.22s">YouTube</span> <span class="word" style="animation-delay:0.29s">audio</span> <span class="word" style="animation-delay:0.36s">into</span> <span class="word" style="animation-delay:0.43s">your</span> <span class="word" style="animation-delay:0.5s">Telegram</span> <span class="word" style="animation-delay:0.57s">bot</span></h1>
+  <p class="hero-sub">A REST API built for bot developers. Send a link, get back a ready-to-play audio stream — with a persistent cache so the same track never has to be fetched twice.</p>
+  <div class="hero-actions">
+    <a href="#token" class="btn-primary">Get your API token →</a>
+    <a href="#docs" class="btn-ghost">Read the docs</a>
+  </div>
+  <div class="hero-powered">Powered by <b>AlfaBots</b></div>
+</section>
+
+<section id="flow">
+  <div class="section-inner">
+    <div class="section-head reveal">
+      <div class="section-kicker">How it works</div>
+      <h2 class="section-title">One link in, one stream out</h2>
+      <p class="section-desc">Every request follows the same path — resolve the link, check the cache, stream the file.</p>
+    </div>
+    <div class="flow reveal-stagger">
+      <div class="flow-step">
+        <div class="flow-num">01</div>
+        <h3>Send a link</h3>
+        <p>Your bot calls <code>/download</code> with a YouTube URL or video ID.</p>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">02</div>
+        <h3>Get a stream token</h3>
+        <p>The API resolves the video and returns a short-lived token bound to it.</p>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">03</div>
+        <h3>Cache is checked</h3>
+        <p>If the track's been requested before, it's served instantly — no re-download.</p>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">04</div>
+        <h3>Audio streams back</h3>
+        <p>Your bot receives the file directly, ready to forward to the user.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="docs">
+  <div class="section-inner">
+    <div class="section-head reveal">
+      <div class="section-kicker">Documentation</div>
+      <h2 class="section-title">Everything the API can do</h2>
+      <p class="section-desc">Three endpoints. No SDK required — plain HTTP requests from any language your bot is written in.</p>
+    </div>
+
+    <div class="docs-shell">
+      <div class="docs-nav">
+        <a href="#doc-download" class="active">Download</a>
+        <a href="#doc-stream">Stream</a>
+        <a href="#doc-auth">Authentication</a>
+        <a href="#doc-limits">Rate limits</a>
+        <a href="#doc-errors">Errors</a>
+      </div>
+
+      <div class="docs-content">
+        <div class="doc-block" id="doc-download">
+          <h3><span class="method-tag method-get">GET</span> /download</h3>
+          <p>Resolves a YouTube link and returns a short-lived stream token bound to that video.</p>
+          <div class="code-block">GET /download?url=dQw4w9WgXcQ&type=audio</div>
+          <table class="param-table">
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td>url</td><td>string</td><td>A YouTube URL, share link, or bare 11-character video ID.</td></tr>
+            <tr><td>type</td><td>string</td><td>audio or video. Defaults to audio.</td></tr>
+          </table>
+          <div class="code-block" style="margin-top:18px">
+<span class="tok-punc">{</span>
+  <span class="tok-key">"status"</span><span class="tok-punc">:</span> <span class="tok-str">"success"</span><span class="tok-punc">,</span>
+  <span class="tok-key">"video_id"</span><span class="tok-punc">:</span> <span class="tok-str">"dQw4w9WgXcQ"</span><span class="tok-punc">,</span>
+  <span class="tok-key">"download_token"</span><span class="tok-punc">:</span> <span class="tok-str">"OpusApi...OpusBots"</span><span class="tok-punc">,</span>
+  <span class="tok-key">"stream_url"</span><span class="tok-punc">:</span> <span class="tok-str">"https://.../stream/dQw4w9WgXcQ?..."</span>
+<span class="tok-punc">}</span></div>
+        </div>
+
+        <div class="doc-block" id="doc-stream">
+          <h3><span class="method-tag method-get">GET</span> /stream/{video_id}</h3>
+          <p>Streams the actual audio or video file. Requires a valid token — either the one just issued by <code>/download</code>, or your own API token.</p>
+          <div class="code-block">GET /stream/dQw4w9WgXcQ?type=audio&token=YOUR_TOKEN</div>
+        </div>
+
+        <div class="doc-block" id="doc-auth">
+          <h3>Authentication</h3>
+          <p>Pass your token as the <code>token</code> query parameter, or as an <code>X-Download-Token</code> header. Generate a token below — it's free, and takes under a minute.</p>
+          <div class="code-block">curl "https://opusmusicapi.example.com/stream/VIDEO_ID?type=audio" \
+  -H <span class="tok-str">"X-Download-Token: YOUR_TOKEN"</span></div>
+        </div>
+
+        <div class="doc-block" id="doc-limits">
+          <h3>Rate limits</h3>
+          <p>Free tokens are valid for 28 days from creation and allow 200 requests. Once either limit is reached, generate a new token.</p>
+          <table class="param-table">
+            <tr><th>Plan</th><th>Requests</th><th>Validity</th></tr>
+            <tr><td>Free token</td><td>200 requests</td><td>28 days</td></tr>
+          </table>
+        </div>
+
+        <div class="doc-block" id="doc-errors">
+          <h3>Errors</h3>
+          <p>Errors return a standard HTTP status with a JSON body describing what went wrong.</p>
+          <div class="code-block"><span class="tok-punc">{</span> <span class="tok-key">"detail"</span><span class="tok-punc">:</span> <span class="tok-str">"Token expired"</span> <span class="tok-punc">}</span>
+<span class="tok-comment">// 401 — token missing, invalid, revoked, or expired
+// 403 — blocked by admin, or channels not joined
+// 404 — token not found
+// 500 — the video couldn't be fetched</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="token">
+  <div class="section-inner">
+    <div class="glass-panel token-card reveal">
+      <h2>Get your API token</h2>
+      <p>Join both channels below, then generate a free token — 200 requests, valid for 28 days.</p>
+
+      <div class="join-list">
+        <div class="join-item">
+          <div class="join-name"><span class="join-check">1</span> Channel One</div>
+          <a href="#" class="join-btn" id="join-1-btn">Join</a>
+        </div>
+        <div class="join-item">
+          <div class="join-name"><span class="join-check">2</span> Channel Two</div>
+          <a href="#" class="join-btn" id="join-2-btn">Join</a>
+        </div>
+      </div>
+
+      <button class="generate-btn" id="generate-btn">Generate token</button>
+
+      <div class="token-limits">
+        <div><b>200</b> requests</div>
+        <div><b>28</b> days validity</div>
+        <div><b>Free</b> forever</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-brand">OpusMusicApi</div>
+  <div class="foot-links">
+    <a href="#docs">Documentation</a>
+    <a href="#token">Get token</a>
+    <a href="#">Powered by AlfaBots</a>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  // ── 3D hero: a torus-knot built from particle points, standing in
+  // for an audio waveform folding through space. Slow, continuous
+  // rotation only — this is the design's one bold motion moment.
+  (function() {
+    const canvas = document.getElementById('hero-canvas');
+    if (!canvas || !window.THREE) return;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.z = 9;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    const size = Math.min(canvas.clientWidth || 720, 720);
+    renderer.setSize(size, size, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const geo = new THREE.TorusKnotGeometry(2.5, 0.65, 220, 24, 2, 3);
+    const posAttr = geo.attributes.position;
+    const count = posAttr.count;
+
+    const colorA = new THREE.Color(0x5B8CFF);
+    const colorB = new THREE.Color(0x00E5C7);
+    const colors = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const t = i / count;
+      const c = colorA.clone().lerp(colorB, (Math.sin(t * Math.PI * 4) + 1) / 2);
+      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.045,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      sizeAttenuation: true,
+    });
+
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+
+    // faint wireframe shell for structure/depth
+    const wireGeo = new THREE.TorusKnotGeometry(2.5, 0.65, 90, 10, 2, 3);
+    const wireMat = new THREE.MeshBasicMaterial({ color: 0x5B8CFF, wireframe: true, transparent: true, opacity: 0.06 });
+    const wire = new THREE.Mesh(wireGeo, wireMat);
+    scene.add(wire);
+
+    let mouseX = 0, mouseY = 0;
+    window.addEventListener('mousemove', (e) => {
+      mouseX = (e.clientX / window.innerWidth - 0.5);
+      mouseY = (e.clientY / window.innerHeight - 0.5);
+    });
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!reduceMotion) {
+        points.rotation.y += 0.0022;
+        points.rotation.x += 0.0006;
+        wire.rotation.y = points.rotation.y;
+        wire.rotation.x = points.rotation.x;
+      }
+      camera.position.x += (mouseX * 1.2 - camera.position.x) * 0.02;
+      camera.position.y += (-mouseY * 1.2 - camera.position.y) * 0.02;
+      camera.lookAt(scene.position);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      const s = Math.min(canvas.clientWidth || 720, 720);
+      renderer.setSize(s, s, false);
+    });
+  })();
+
+  // ── Docs scroll-spy ──────────────────────────────────────
+  (function() {
+    const blocks = document.querySelectorAll('.doc-block');
+    const links = document.querySelectorAll('.docs-nav a');
+    const map = {};
+    links.forEach(l => map[l.getAttribute('href').slice(1)] = l);
+
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          const link = map[entry.target.id];
+          if (link) link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+
+    blocks.forEach(b => obs.observe(b));
+  })();
+
+  // ── Token generator (placeholder wiring — connects to
+  // /api/token/generate once force-join checking is live) ──
+  (function() {
+    const genBtn = document.getElementById('generate-btn');
+    if (!genBtn) return;
+    genBtn.addEventListener('click', () => {
+      genBtn.textContent = 'Join both channels first';
+      setTimeout(() => { genBtn.textContent = 'Generate token'; }, 2200);
+    });
+  })();
+
+  // ── Nav background on scroll ──────────────────────────────
+  (function() {
+    const nav = document.querySelector('nav');
+    if (!nav) return;
+    const onScroll = () => {
+      if (window.scrollY > 40) nav.classList.add('scrolled');
+      else nav.classList.remove('scrolled');
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+
+  // ── Cursor glow follow ────────────────────────────────────
+  (function() {
+    const glow = document.getElementById('cursor-glow');
+    if (!glow) return;
+    let tx = 0, ty = 0, cx = 0, cy = 0;
+    window.addEventListener('mousemove', (e) => { tx = e.clientX; ty = e.clientY; });
+    function loop() {
+      cx += (tx - cx) * 0.12;
+      cy += (ty - cy) * 0.12;
+      glow.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -50%)`;
+      requestAnimationFrame(loop);
+    }
+    loop();
+  })();
+
+  // ── Scroll-reveal ──────────────────────────────────────────
+  (function() {
+    const targets = document.querySelectorAll('.reveal');
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in-view');
+          obs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -60px 0px' });
+    targets.forEach(t => obs.observe(t));
+  })();
+
+  // ── Copy buttons on every code block ──────────────────────
+  (function() {
+    document.querySelectorAll('.code-block').forEach(block => {
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', () => {
+        const text = block.innerText.replace(/^Copy\n?/, '');
+        navigator.clipboard.writeText(text).then(() => {
+          btn.textContent = 'Copied';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1600);
+        });
+      });
+      block.style.paddingRight = '70px';
+      block.appendChild(btn);
+    });
+  })();
+
+  // ── Join-channel buttons toggle a "done" state (visual only —
+  // real Telegram membership check wired up in a later step) ──
+  (function() {
+    ['join-1-btn', 'join-2-btn'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const item = btn.closest('.join-item');
+        item.classList.add('done');
+        item.querySelector('.join-check').textContent = '✓';
+        btn.textContent = 'Joined';
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>
