@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpusMusicApi — YouTube audio, streamed straight into your Telegram bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EDE9F7;
+    --ink: #1A1B2E;
+    --ink-soft: #4A4A63;
+    --muted: #7B7B96;
+    --card: rgba(255,255,255,0.55);
+    --card-solid: #FDFCFF;
+    --line: rgba(26,27,46,0.10);
+    --pink: #FF4D9D;
+    --orange: #FFA53D;
+    --teal: #2DD9C4;
+    --purple: #8B5CF6;
+    --yellow: #FFD23D;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  ::selection { background: rgba(139,92,246,0.28); color: var(--ink); }
+  a { color: inherit; text-decoration: none; }
+  img, svg { display: block; max-width: 100%; }
+
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 2; }
+
+  /* ── Background blobs (the one bold color moment, behind everything) ── */
+  .blob-field {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(2px);
+  }
+  .blob-1 { width: 560px; height: 560px; left: -220px; top: 40vh; background: radial-gradient(circle at 35% 30%, var(--pink), #C21E6F 75%); opacity: 0.85; }
+  .blob-2 { width: 480px; height: 480px; right: -180px; top: -120px; background: radial-gradient(circle at 40% 35%, var(--purple), #5B21B6 75%); opacity: 0.8; }
+  .blob-3 { width: 420px; height: 420px; right: -140px; bottom: -160px; background: radial-gradient(circle at 35% 30%, var(--yellow), var(--orange) 70%); opacity: 0.9; }
+  .blob-4 { width: 260px; height: 260px; right: 8%; top: 30%; background: radial-gradient(circle at 35% 30%, #6EEAD8, var(--teal) 75%); opacity: 0.75; }
+
+  /* ── Nav ─────────────────────────────────────────────────── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(237,233,247,0.65);
+    backdrop-filter: blur(16px);
+  }
+  .nav-inner {
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 17px; flex-shrink: 0; white-space: nowrap; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 10px; background: var(--ink); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand-mark svg { width: 18px; height: 18px; }
+
+  .nav-links { display: flex; gap: 32px; font-size: 14.5px; font-weight: 500; color: var(--ink-soft); flex: 1; justify-content: center; }
+  .nav-links a { transition: color 0.2s; white-space: nowrap; }
+  .nav-links a:hover { color: var(--ink); }
+
+  .nav-cta {
+    position: relative;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 14px;
+    color: #fff;
+    background: linear-gradient(155deg, #33344E, var(--ink) 60%);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+    padding: 11px 22px;
+    border-radius: 999px;
+    transition: transform 0.15s, box-shadow 0.2s;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .nav-cta:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 10px 24px rgba(26,27,46,0.25); }
+
+  @media (max-width: 720px) { .nav-links { display: none; } }
+
+  /* ── Hero ────────────────────────────────────────────────── */
+  .hero { padding: 36px 0 80px; }
+
+  /* ── Liquid glass (iOS-style: saturated blur + specular rim + inner glow) ── */
+  .liquid-glass {
+    position: relative;
+    background: linear-gradient(155deg, rgba(255,255,255,0.55), rgba(255,255,255,0.22));
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid rgba(255,255,255,0.65);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,0.9),
+      inset 0 -12px 24px -18px rgba(255,255,255,0.6),
+      0 20px 50px rgba(90,60,140,0.16);
+  }
+  .liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.5));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .hero-card {
+    border-radius: 32px;
+    padding: 56px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: center;
+  }
+  @media (max-width: 900px) {
+    .hero-card { grid-template-columns: 1fr; padding: 36px 26px; border-radius: 26px; }
+  }
+
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    color: var(--purple);
+    margin-bottom: 18px;
+  }
+  .hero-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); }
+
+  h1.hero-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(32px, 4vw, 46px);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin-bottom: 18px;
+  }
+
+  .hero-sub {
+    font-size: 15.5px;
+    color: var(--ink-soft);
+    max-width: 42ch;
+    margin-bottom: 28px;
+  }
+
+  .hero-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .hero-input {
+    flex: 1;
+    min-width: 200px;
+    font-family: var(--font-body);
+    font-size: 14.5px;
+    color: var(--ink);
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(26,27,46,0.12);
+    padding: 15px 20px;
+    border-radius: 999px;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .hero-input::placeholder { color: var(--muted); }
+  .hero-input:focus { border-color: var(--purple); background: #fff; }
+
+  .btn-dark {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 14.5px;
+    color: #fff;
+    background: linear-gradient(155deg, #33344E, var(--ink) 60%);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+    padding: 15px 28px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+    white-space: nowrap;
+  }
+  .btn-dark:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 12px 28px rgba(26,27,46,0.28); }
+  .btn-dark:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .btn-glass {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 14.5px;
+    color: var(--ink);
+    background: linear-gradient(155deg, rgba(255,255,255,0.6), rgba(255,255,255,0.28));
+    backdrop-filter: blur(16px) saturate(1.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    border: 1px solid rgba(255,255,255,0.75);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,0.9),
+      inset 0 -8px 14px -10px rgba(255,255,255,0.6);
+    padding: 14px 26px;
+    border-radius: 999px;
+    transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .btn-glass:hover {
+    background: rgba(255,255,255,0.55);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(90,60,140,0.14);
+  }
+
+  .hero-stats { display: flex; gap: 26px; margin-top: 30px; flex-wrap: wrap; }
+  .hero-stats div { font-size: 12.5px; color: var(--muted); }
+  .hero-stats b { display: block; font-family: var(--font-display); font-size: 22px; color: var(--ink); font-weight: 700; }
+
+  /* ── 3D-style illustration (pure CSS/SVG, music theme) ────── */
+  .illo-stage {
+    position: relative;
+    height: 380px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  @media (max-width: 900px) { .illo-stage { height: 300px; } }
+
+  .illo-float {
+    position: absolute;
+    border-radius: 22px;
+    display: flex;
+    border: 1px solid rgba(255,255,255,0.55);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,0.8),
+      inset 0 -8px 14px -8px rgba(255,255,255,0.5),
+      0 14px 30px rgba(90,60,140,0.22);
+    align-items: center;
+    justify-content: center;
+    animation: float 5s ease-in-out infinite;
+  }
+  .illo-float svg { width: 60%; height: 60%; }
+  @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-14px); } }
+
+  .illo-1 { width: 74px; height: 74px; background: linear-gradient(150deg, #FFE07D, var(--orange)); top: 4%; left: 6%; animation-delay: 0s; }
+  .illo-2 { width: 64px; height: 64px; background: linear-gradient(150deg, #8DF0E4, var(--teal)); top: 12%; right: 4%; animation-delay: 0.6s; }
+  .illo-3 { width: 68px; height: 68px; background: linear-gradient(150deg, #FF9EC8, var(--pink)); bottom: 10%; left: 0%; animation-delay: 1.2s; }
+  .illo-4 { width: 58px; height: 58px; background: linear-gradient(150deg, #C4B0FF, var(--purple)); bottom: 4%; right: 10%; animation-delay: 1.8s; }
+
+  .illo-center {
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #C4B0FF, var(--purple) 65%, #5B21B6 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255,255,255,0.4);
+    box-shadow:
+      inset 0 2px 2px rgba(255,255,255,0.7),
+      inset 0 -20px 34px -20px rgba(255,255,255,0.4),
+      0 30px 60px rgba(90,60,140,0.3);
+    position: relative;
+  }
+  .illo-center svg { width: 55%; height: 55%; }
+
+  .illo-ring {
+    position: absolute;
+    border: 2px dashed rgba(139,92,246,0.3);
+    border-radius: 50%;
+    width: 300px;
+    height: 300px;
+    animation: spin 30s linear infinite;
+  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .illo-float, .illo-ring, .flow-step-icon { animation: none; }
+  }
+
+  /* ── Sections ────────────────────────────────────────────── */
+  section { padding: 80px 0; }
+  .section-head { margin-bottom: 40px; max-width: 54ch; }
+  .section-kicker {
+    display: inline-flex;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 12.5px;
+    color: var(--pink);
+    margin-bottom: 10px;
+  }
+  h2.section-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(24px, 3vw, 32px);
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .section-desc { color: var(--ink-soft); font-size: 15px; max-width: 50ch; }
+
+  /* ── Flow cards ──────────────────────────────────────────── */
+  .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 780px) { .flow { grid-template-columns: 1fr; } }
+
+  .flow-step {
+    border-radius: 22px;
+    padding: 28px 24px;
+  }
+  .flow-step-icon {
+    width: 46px; height: 46px;
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px;
+    border: 1px solid rgba(255,255,255,0.55);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,0.8),
+      inset 0 -6px 10px -6px rgba(255,255,255,0.5),
+      0 8px 18px rgba(90,60,140,0.18);
+    animation: iconFloat 4s ease-in-out infinite;
+    transition: transform 0.25s ease;
+  }
+  .flow-step:hover .flow-step-icon { transform: scale(1.08) rotate(-4deg); }
+  .flow-step:nth-child(1) .flow-step-icon { animation-delay: 0s; }
+  .flow-step:nth-child(2) .flow-step-icon { animation-delay: 0.5s; }
+  .flow-step:nth-child(3) .flow-step-icon { animation-delay: 1s; }
+  @keyframes iconFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .flow-step-icon svg { width: 22px; height: 22px; }
+  .flow-step:nth-child(1) .flow-step-icon { background: linear-gradient(150deg, #FFE07D, var(--orange)); }
+  .flow-step:nth-child(2) .flow-step-icon { background: linear-gradient(150deg, #8DF0E4, var(--teal)); }
+  .flow-step:nth-child(3) .flow-step-icon { background: linear-gradient(150deg, #FF9EC8, var(--pink)); }
+  .flow-step h3 { font-family: var(--font-display); font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--ink); }
+  .flow-step p { font-size: 14px; color: var(--ink-soft); line-height: 1.6; }
+  .flow-step code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--purple);
+    background: rgba(139,92,246,0.1);
+    padding: 1px 6px;
+    border-radius: 5px;
+  }
+
+  /* ── Docs ────────────────────────────────────────────────── */
+  .docs-layout { display: grid; grid-template-columns: 180px 1fr; gap: 40px; }
+  @media (max-width: 780px) { .docs-layout { grid-template-columns: 1fr; } }
+
+  .docs-nav { position: sticky; top: 90px; align-self: start; display: flex; flex-direction: column; gap: 4px; }
+  @media (max-width: 780px) {
+    .docs-nav { position: static; flex-direction: row; overflow-x: auto; gap: 8px; padding-bottom: 6px; margin-bottom: 8px; }
+  }
+  .docs-nav a {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--muted);
+    padding: 8px 12px;
+    border-radius: 10px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .docs-nav a:hover { color: var(--ink); }
+  .docs-nav a.active { color: var(--ink); background: rgba(255,255,255,0.6); }
+
+  .doc-block {
+    border-radius: 22px;
+    padding: 28px;
+    margin-bottom: 24px;
+    scroll-margin-top: 90px;
+  }
+  .doc-block:last-child { margin-bottom: 0; }
+
+  .method-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .method-tag {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #fff;
+    background: var(--teal);
+    padding: 4px 10px;
+    border-radius: 7px;
+  }
+  .method-path { font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--ink); }
+  .doc-block > p.doc-desc { color: var(--ink-soft); font-size: 14.5px; margin-bottom: 18px; max-width: 60ch; }
+
+  .code-block {
+    background: var(--ink);
+    color: #E4E2F0;
+    border-radius: 14px;
+    padding: 16px 18px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+    position: relative;
+  }
+  .code-block .s { color: #8DF0E4; }
+  .code-block .c { color: #8B8BAA; font-style: italic; }
+
+  .copy-btn {
+    position: absolute;
+    top: 10px; right: 10px;
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 600;
+    color: #E4E2F0;
+    background: rgba(255,255,255,0.12);
+    border: none;
+    padding: 6px 11px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .copy-btn:hover { background: rgba(255,255,255,0.22); }
+  .copy-btn.copied { color: #8DF0E4; }
+
+  .param-table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+  .param-table th {
+    text-align: left;
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--muted);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .param-table td { padding: 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .param-table tr:last-child td { border-bottom: none; }
+  .param-name { font-family: var(--font-mono); font-size: 13.5px; font-weight: 500; color: var(--ink); }
+  .param-type { font-family: var(--font-mono); font-size: 12.5px; color: var(--purple); }
+  .param-desc { color: var(--ink-soft); font-size: 13.5px; padding-right: 8px; }
+  .error-table td:nth-child(1) { font-family: var(--font-mono); color: var(--ink); font-weight: 600; }
+
+  .inline-code {
+    font-family: var(--font-mono);
+    background: rgba(139,92,246,0.1);
+    color: var(--purple);
+    padding: 1px 6px;
+    border-radius: 5px;
+  }
+
+  /* ── Token section ───────────────────────────────────────── */
+  .token-card {
+    border-radius: 32px;
+    padding: 52px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .token-card { grid-template-columns: 1fr; padding: 32px 24px; gap: 32px; } }
+
+  .join-list { display: flex; flex-direction: column; gap: 10px; margin: 26px 0; }
+  .join-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(155deg, rgba(255,255,255,0.55), rgba(255,255,255,0.25));
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.8);
+    border-radius: 16px;
+    padding: 14px 18px;
+    transition: all 0.25s;
+  }
+  .join-item.done { border-color: rgba(45,217,196,0.4); background: linear-gradient(155deg, rgba(45,217,196,0.22), rgba(45,217,196,0.1)); }
+  .join-item-label { display: flex; align-items: center; gap: 12px; font-size: 14.5px; font-weight: 500; }
+  .join-check {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 1.5px solid rgba(26,27,46,0.18);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: transparent;
+    transition: all 0.25s; flex-shrink: 0;
+  }
+  .join-item.done .join-check { border-color: var(--teal); background: var(--teal); color: #fff; }
+  .join-btn {
+    font-family: var(--font-body); font-weight: 700; font-size: 13px;
+    color: var(--ink);
+    background: linear-gradient(155deg, rgba(255,255,255,0.9), rgba(255,255,255,0.6));
+    border: 1px solid rgba(255,255,255,0.8);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.9);
+    padding: 8px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .join-item.done .join-btn { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .join-btn:hover { transform: translateY(-1px); }
+
+  .token-form-label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+  .telegram-id-input {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 14.5px;
+    color: var(--ink);
+    background: linear-gradient(155deg, rgba(255,255,255,0.65), rgba(255,255,255,0.35));
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.9);
+    padding: 15px 20px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .telegram-id-input::placeholder { color: var(--muted); }
+  .telegram-id-input:focus { border-color: var(--purple); background: #fff; }
+
+  .generate-btn {
+    width: 100%;
+    font-family: var(--font-body); font-weight: 700; font-size: 15px;
+    color: #fff;
+    background: linear-gradient(155deg, #33344E, var(--ink) 60%);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+    padding: 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+  .generate-btn:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 14px 32px rgba(26,27,46,0.28); }
+  .generate-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .token-result { margin-top: 16px; display: none; }
+  .token-result.show { display: block; }
+  .token-result.error {
+    font-size: 13.5px; font-weight: 500;
+    color: #C2185B;
+    border: 1px solid rgba(255,77,157,0.3);
+    background: rgba(255,77,157,0.08);
+    padding: 12px 16px;
+    border-radius: 14px;
+  }
+  .token-result .token-value {
+    font-family: var(--font-mono); font-size: 12.5px;
+    color: #0F9B87;
+    background: rgba(45,217,196,0.12);
+    border: 1px solid rgba(45,217,196,0.35);
+    border-radius: 14px;
+    padding: 14px 18px;
+    word-break: break-all;
+    cursor: pointer;
+  }
+  .token-result .token-meta { margin-top: 10px; display: flex; gap: 20px; font-size: 13px; color: var(--ink-soft); }
+
+  .token-stats { display: flex; gap: 24px; margin-top: 22px; }
+  .token-stats div { font-size: 12.5px; color: var(--muted); }
+  .token-stats b { display: block; font-family: var(--font-display); font-size: 20px; color: var(--ink); font-weight: 700; }
+
+  /* ── Footer ──────────────────────────────────────────────── */
+  footer { padding: 60px 0 50px; }
+
+  .credits-card {
+    border-radius: 26px;
+    padding: 32px 36px;
+    margin-bottom: 28px;
+  }
+  .credits-head {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .credits-grid {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+  @media (max-width: 620px) {
+    .credits-grid { flex-direction: column; align-items: stretch; gap: 20px; }
+  }
+  .credit-divider {
+    width: 1px;
+    align-self: stretch;
+    background: rgba(26,27,46,0.10);
+  }
+  @media (max-width: 620px) {
+    .credit-divider { width: 100%; height: 1px; }
+  }
+  .credit-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .credit-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.55);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,0.8),
+      inset 0 -6px 10px -6px rgba(255,255,255,0.5),
+      0 8px 18px rgba(90,60,140,0.16);
+  }
+  .credit-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .credit-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+    color: var(--ink);
+  }
+  .credit-role {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 2px 0 6px;
+  }
+  .credit-tg {
+    display: inline-flex;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--purple);
+    background: rgba(139,92,246,0.1);
+    padding: 4px 10px;
+    border-radius: 999px;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .credit-tg:hover { background: rgba(139,92,246,0.18); transform: translateY(-1px); }
+
+  .footer-row {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px;
+    font-size: 13.5px; color: var(--muted);
+  }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { transition: color 0.2s; }
+  .footer-links a:hover { color: var(--ink); }
+
+  @media (max-width: 560px) {
+    .footer-row { flex-direction: column; text-align: center; justify-content: center; }
+    .footer-links { justify-content: center; }
+  }
+
+  /* ── Reveal ──────────────────────────────────────────────── */
+  .js-ready .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.in-view { opacity: 1; transform: translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .js-ready .reveal { opacity: 1; transform: none; transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="blob-field">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+</div>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M6 5v10l9-5-9-5Z" fill="#FFD23D"/></svg>
+      </div>
+      OpusMusicApi
+    </div>
+    <div class="nav-links">
+      <a href="#flow">How it works</a>
+      <a href="#docs">Documentation</a>
+      <a href="#token">Get a token</a>
+    </div>
+    <a href="#token" class="nav-cta">Sign up</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-card liquid-glass">
+      <div>
+        <div class="hero-eyebrow"><span class="dot"></span>DO MORE WITH YOUR BOT</div>
+        <h1 class="hero-title">YouTube audio, streamed into your Telegram bot</h1>
+        <p class="hero-sub">Send a link, get back a ready-to-play audio stream. A persistent cache means the same track never gets fetched twice.</p>
+
+        <div class="hero-form">
+          <a href="#token" class="btn-dark">Get your API token</a>
+          <a href="#docs" class="btn-glass">Read the docs</a>
+        </div>
+
+        <div class="hero-stats">
+          <div><b>3</b>endpoints</div>
+          <div><b>200</b>free requests</div>
+          <div><b>28d</b>token validity</div>
+        </div>
+      </div>
+
+      <div class="illo-stage">
+        <div class="illo-ring"></div>
+        <div class="illo-center">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M9 18V6l12-2v12" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="6" cy="18" r="3" stroke="#fff" stroke-width="1.6"/>
+            <circle cx="18" cy="16" r="3" stroke="#fff" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <div class="illo-float illo-1">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 18V6l12-2v12" stroke="#7A4A00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="#7A4A00" stroke-width="1.8"/><circle cx="18" cy="16" r="3" stroke="#7A4A00" stroke-width="1.8"/></svg>
+        </div>
+        <div class="illo-float illo-2">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3 10v4h4l5 5V5L7 10H3Z" fill="#0A6E62"/><path d="M16 8a5 5 0 0 1 0 8" stroke="#0A6E62" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <div class="illo-float illo-3">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="3" stroke="#9C1259" stroke-width="1.8"/><circle cx="12" cy="17" r="1.4" fill="#9C1259"/><path d="M8 7h8" stroke="#9C1259" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <div class="illo-float illo-4">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6Z" fill="#3B1780"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="flow">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-kicker">HOW IT WORKS</div>
+      <h2 class="section-title">One link in, one stream out</h2>
+      <p class="section-desc">Every request follows the same three-step path, whether the track's been requested before or not.</p>
+    </div>
+    <div class="flow reveal">
+      <div class="flow-step liquid-glass">
+        <div class="flow-step-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" stroke="#7A4A00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>Resolve the link</h3>
+        <p>Your bot calls <code>/download</code> with a YouTube URL or bare video ID. The API returns a stream token bound to that video.</p>
+      </div>
+      <div class="flow-step liquid-glass">
+        <div class="flow-step-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 21a9 9 0 1 0-9-9c0 2 .6 3.8 1.7 5.3L3 21l3.8-1.6A9 9 0 0 0 12 21Z" stroke="#0A6E62" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+        <h3>Check the cache</h3>
+        <p>If the track's been requested before, it's already sitting in permanent storage — no re-download, no wait.</p>
+      </div>
+      <div class="flow-step liquid-glass">
+        <div class="flow-step-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M3 10v4h4l5 5V5L7 10H3Z" fill="#9C1259"/><path d="M16 8a5 5 0 0 1 0 8" stroke="#9C1259" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <h3>Stream it back</h3>
+        <p>Your bot receives the file directly from <code>/stream/{video_id}</code>, ready to forward to the user.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="docs">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="section-kicker">DOCUMENTATION</div>
+      <h2 class="section-title">Everything the API can do</h2>
+      <p class="section-desc">Three endpoints. Plain HTTP requests from any language your bot is written in.</p>
+    </div>
+
+    <div class="docs-layout">
+      <div class="docs-nav">
+        <a href="#doc-download">Download</a>
+        <a href="#doc-stream">Stream</a>
+        <a href="#doc-auth">Authentication</a>
+        <a href="#doc-limits">Rate limits</a>
+        <a href="#doc-errors">Errors</a>
+      </div>
+
+      <div>
+        <div class="doc-block liquid-glass" id="doc-download">
+          <div class="method-row"><span class="method-tag">GET</span><span class="method-path">/download</span></div>
+          <p class="doc-desc">Resolves a YouTube link and returns a short-lived stream token bound to that video.</p>
+          <div class="code-block">GET /download?url=dQw4w9WgXcQ&amp;type=audio</div>
+          <table class="param-table">
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td class="param-name">url</td><td class="param-type">string</td><td class="param-desc">A YouTube URL, share link, or bare 11-character video ID.</td></tr>
+            <tr><td class="param-name">type</td><td class="param-type">string</td><td class="param-desc">audio or video. Defaults to audio.</td></tr>
+          </table>
+          <div class="code-block" style="margin-top:16px;">{ <span class="s">"status"</span>: <span class="s">"success"</span>, <span class="s">"video_id"</span>: <span class="s">"dQw4w9WgXcQ"</span>,
+  <span class="s">"download_token"</span>: <span class="s">"OpusApi...OpusBots"</span>,
+  <span class="s">"stream_url"</span>: <span class="s">"https://.../stream/dQw4w9WgXcQ?..."</span> }</div>
+        </div>
+
+        <div class="doc-block liquid-glass" id="doc-stream">
+          <div class="method-row"><span class="method-tag">GET</span><span class="method-path">/stream/{video_id}</span></div>
+          <p class="doc-desc">Streams the actual audio or video file. Requires a valid token — either the one just issued by <span class="inline-code">/download</span>, or your own API token.</p>
+          <div class="code-block">GET /stream/dQw4w9WgXcQ?type=audio&amp;token=YOUR_TOKEN</div>
+        </div>
+
+        <div class="doc-block liquid-glass" id="doc-auth">
+          <h3 style="font-family:var(--font-display); font-size:19px; font-weight:700; margin-bottom:14px; color:var(--ink);">Authentication</h3>
+          <p class="doc-desc">Pass your token as the <span class="inline-code">token</span> query parameter, or as an <span class="inline-code">X-Download-Token</span> header. Generate one below — it's free, and takes under a minute.</p>
+          <div class="code-block"><span class="c"># curl example</span>
+curl <span class="s">"https://opusmusicapi.example.com/stream/VIDEO_ID?type=audio"</span> \
+  -H <span class="s">"X-Download-Token: YOUR_TOKEN"</span></div>
+        </div>
+
+        <div class="doc-block liquid-glass" id="doc-limits">
+          <h3 style="font-family:var(--font-display); font-size:19px; font-weight:700; margin-bottom:14px; color:var(--ink);">Rate limits</h3>
+          <p class="doc-desc">Free tokens are valid for 28 days from creation and allow 200 requests. Once either limit is reached, generate a new token.</p>
+          <table class="param-table">
+            <tr><th>Plan</th><th>Requests</th><th>Validity</th></tr>
+            <tr><td class="param-name">Free token</td><td class="param-type">200 requests</td><td class="param-desc">28 days</td></tr>
+          </table>
+        </div>
+
+        <div class="doc-block liquid-glass" id="doc-errors">
+          <h3 style="font-family:var(--font-display); font-size:19px; font-weight:700; margin-bottom:14px; color:var(--ink);">Errors</h3>
+          <p class="doc-desc">Errors return a standard HTTP status with a JSON body describing what went wrong.</p>
+          <table class="param-table error-table">
+            <tr><th>Status</th><th>Meaning</th></tr>
+            <tr><td>401</td><td class="param-desc">Token missing, invalid, revoked, or expired.</td></tr>
+            <tr><td>403</td><td class="param-desc">Blocked by admin, or required channels not joined.</td></tr>
+            <tr><td>404</td><td class="param-desc">Token not found.</td></tr>
+            <tr><td>500</td><td class="param-desc">The video couldn't be fetched.</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="token">
+  <div class="wrap">
+    <div class="token-card liquid-glass reveal">
+      <div>
+        <div class="section-kicker">GET A TOKEN</div>
+        <h2 class="section-title" style="max-width:16ch;">Free, and takes under a minute</h2>
+        <p class="section-desc">Join both channels, then generate a token — 200 requests, valid for 28 days, no cost.</p>
+        <div class="token-stats">
+          <div><b>200</b>requests</div>
+          <div><b>28</b>days validity</div>
+          <div><b>Free</b>forever</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="join-list">
+          <div class="join-item" id="join-1-item">
+            <div class="join-item-label"><span class="join-check" id="join-1-check"></span>Channel One</div>
+            <button class="join-btn" id="join-1-btn">Join</button>
+          </div>
+          <div class="join-item" id="join-2-item">
+            <div class="join-item-label"><span class="join-check" id="join-2-check"></span>Channel Two</div>
+            <button class="join-btn" id="join-2-btn">Join</button>
+          </div>
+        </div>
+
+        <label class="token-form-label" for="telegram-id-input">Telegram numeric ID</label>
+        <input type="number" id="telegram-id-input" class="telegram-id-input" placeholder="e.g. 5849203841">
+
+        <button class="generate-btn" id="generate-btn">Generate token</button>
+
+        <div class="token-result" id="token-result"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="credits-card liquid-glass reveal">
+      <div class="credits-head">Built by</div>
+      <div class="credits-grid">
+        <div class="credit-item">
+          <div class="credit-avatar"><img src="cherry.jpg" alt="Cherry"></div>
+          <div>
+            <div class="credit-name">Cherry</div>
+            <div class="credit-role">Frontend Developer</div>
+            <a href="https://t.me/Seductive_caffine" target="_blank" rel="noopener" class="credit-tg">@Seductive_caffine</a>
+          </div>
+        </div>
+        <div class="credit-divider"></div>
+        <div class="credit-item">
+          <div class="credit-avatar"><img src="ronin.jpg" alt="Ronin"></div>
+          <div>
+            <div class="credit-name">Ronin</div>
+            <div class="credit-role">Backend Developer</div>
+            <a href="https://t.me/UffSexyboi" target="_blank" rel="noopener" class="credit-tg">@UffSexyboi</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-row">
+      <div>OpusMusicApi — powered by AlfaBots</div>
+      <div class="footer-links">
+        <a href="#docs">Documentation</a>
+        <a href="#token">Get token</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.documentElement.classList.add('js-ready');
+
+  // ── Docs scroll-spy ──────────────────────────────────────
+  (function() {
+    const blocks = document.querySelectorAll('.doc-block');
+    const links = document.querySelectorAll('.docs-nav a');
+    const map = {};
+    links.forEach(l => map[l.getAttribute('href').slice(1)] = l);
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          const link = map[entry.target.id];
+          if (link) link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    blocks.forEach(b => obs.observe(b));
+  })();
+
+  // ── Copy buttons on every code block ──────────────────────
+  (function() {
+    document.querySelectorAll('.code-block').forEach(block => {
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', () => {
+        const text = block.innerText.replace(/^Copy\n?/, '');
+        navigator.clipboard.writeText(text).then(() => {
+          btn.textContent = 'Copied';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1600);
+        });
+      });
+      block.style.paddingRight = '70px';
+      block.appendChild(btn);
+    });
+  })();
+
+  // ── Join-channel buttons: client-side "done" state only.
+  // NOTE: does not verify real Telegram membership — the backend's
+  // /api/token/generate endpoint currently trusts joined_channels
+  // as sent by the client (see user_routes.py). ──
+  (function() {
+    ['join-1', 'join-2'].forEach(id => {
+      const btn = document.getElementById(id + '-btn');
+      const item = document.getElementById(id + '-item');
+      const check = document.getElementById(id + '-check');
+      if (!btn || !item || !check) return;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        item.classList.add('done');
+        check.textContent = '✓';
+        btn.textContent = 'Joined';
+      });
+    });
+  })();
+
+  // ── Token generator — calls the real /api/token/generate endpoint ──
+  (function() {
+    const genBtn = document.getElementById('generate-btn');
+    const idInput = document.getElementById('telegram-id-input');
+    const resultBox = document.getElementById('token-result');
+    if (!genBtn || !idInput || !resultBox) return;
+
+    function showResult(html, isError) {
+      resultBox.innerHTML = html;
+      resultBox.classList.add('show');
+      resultBox.classList.toggle('error', !!isError);
+    }
+
+    function attachCopyHandler() {
+      const valueEl = resultBox.querySelector('.token-value');
+      if (!valueEl) return;
+      valueEl.title = 'Click to copy';
+      valueEl.addEventListener('click', () => {
+        navigator.clipboard.writeText(valueEl.dataset.token || '').then(() => {
+          const old = valueEl.textContent;
+          valueEl.textContent = 'Copied!';
+          setTimeout(() => { valueEl.textContent = old; }, 1200);
+        });
+      });
+    }
+
+    genBtn.addEventListener('click', async () => {
+      const joinedBoth = document.querySelectorAll('.join-item.done').length >= 2;
+      const telegramId = parseInt(idInput.value, 10);
+
+      if (!joinedBoth) { showResult('Join both channels above first.', true); return; }
+      if (!telegramId || Number.isNaN(telegramId)) {
+        showResult('Enter a valid Telegram numeric ID above.', true);
+        idInput.focus();
+        return;
+      }
+
+      const originalText = genBtn.textContent;
+      genBtn.disabled = true;
+      genBtn.textContent = 'Generating...';
+      resultBox.classList.remove('show', 'error');
+
+      try {
+        const res = await fetch('/api/token/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_id: telegramId, joined_channels: true }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          showResult((data && data.detail) ? data.detail : `Request failed (HTTP ${res.status})`, true);
+          return;
+        }
+
+        showResult(`
+          <div class="token-value" data-token="${data.token}">${data.token}</div>
+          <div class="token-meta">
+            <div>Expires ${new Date(data.expires_at).toLocaleDateString()}</div>
+            <div>${data.request_limit} requests</div>
+          </div>
+        `, false);
+        attachCopyHandler();
+      } catch (err) {
+        showResult('Network error — could not reach the server.', true);
+      } finally {
+        genBtn.disabled = false;
+        genBtn.textContent = originalText;
+      }
+    });
+  })();
+
+  // ── Scroll-reveal (single orchestrated pattern, with safety net) ──
+  (function() {
+    const targets = document.querySelectorAll('.reveal');
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in-view');
+          obs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -10% 0px' });
+    targets.forEach(t => obs.observe(t));
+    setTimeout(() => targets.forEach(t => t.classList.add('in-view')), 2500);
+  })();
+</script>
+
+</body>
+</html>
