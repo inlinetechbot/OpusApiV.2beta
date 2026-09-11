@@ -64,3 +64,8 @@ TOKEN_REQUEST_LIMIT = int(os.environ.get("TOKEN_REQUEST_LIMIT", 200))
 # ── Force-join channels (placeholders — fill in when ready) ──
 FORCE_JOIN_CHANNEL_1 = os.environ.get("FORCE_JOIN_CHANNEL_1", "")
 FORCE_JOIN_CHANNEL_2 = os.environ.get("FORCE_JOIN_CHANNEL_2", "")
+
+# ── Telegram Bot (used to verify real channel membership) ─────
+# This bot MUST be an admin in both FORCE_JOIN_CHANNEL_1 and
+# FORCE_JOIN_CHANNEL_2, otherwise getChatMember calls will fail.
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
