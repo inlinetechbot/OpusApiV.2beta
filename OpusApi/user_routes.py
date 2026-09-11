@@ -15,7 +15,7 @@ endpoint shape stable so the landing page can be built against it now.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from OpusApi import config
+from OpusApi import config, auth
 from OpusApi.database import supabase_client
 
 router = APIRouter(prefix="/api/token", tags=["tokens"])
@@ -24,7 +24,6 @@ router = APIRouter(prefix="/api/token", tags=["tokens"])
 class GenerateTokenRequest(BaseModel):
     telegram_id: int
     telegram_username: str | None = None
-    joined_channels: bool = False  # real check added in the force-join step
 
 
 class RevokeTokenRequest(BaseModel):
@@ -54,14 +53,12 @@ def _require_admin(admin_key: str):
 async def generate_user_token(body: GenerateTokenRequest):
     _require_supabase()
 
-    if not body.joined_channels:
+    all_joined, missing = await auth.verify_channels_joined(body.telegram_id)
+    if not all_joined:
+        missing_str = " and ".join(f"@{c}" for c in missing)
         raise HTTPException(
             status_code=403,
-            detail=(
-                "Please join both required channels before generating a token: "
-                f"@{config.FORCE_JOIN_CHANNEL_1 or '(channel 1 not set)'} and "
-                f"@{config.FORCE_JOIN_CHANNEL_2 or '(channel 2 not set)'}"
-            ),
+            detail=f"Please join {missing_str} first, then try again.",
         )
 
     await supabase_client.upsert_user(body.telegram_id, body.telegram_username, True)
